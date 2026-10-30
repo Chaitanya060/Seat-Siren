@@ -1,0 +1,172 @@
+/* ============================================================
+   SeatSiren — "Midnight Box Office"
+   Design tokens from the technical spec (§11)
+   ============================================================ */
+
+:root,
+:root[data-theme='dark'] {
+  --bg: #0e0b14;
+  --surface: #17121f;
+  --ink: #f3eef8;
+  --muted: #9a8fb0;
+  --amber: #f5a524;
+  --green: #38d39f;
+  --perf: #2a2235;
+
+  --amber-glow: rgba(245, 165, 36, 0.35);
+  --card-shadow: 0 18px 50px -20px rgba(0, 0, 0, 0.8);
+  --notch: var(--bg);
+}
+
+:root[data-theme='light'] {
+  --bg: #fbf7f2;
+  --surface: #ffffff;
+  --ink: #1a141f;
+  --muted: #6b6276;
+  --amber: #d98613;
+  --green: #0e9e6e;
+  --perf: #e7dfea;
+
+  --amber-glow: rgba(217, 134, 19, 0.28);
+  --card-shadow: 0 18px 44px -24px rgba(90, 60, 10, 0.3);
+  --notch: var(--bg);
+}
+
+/* Fonts */
+:root {
+  --font-display: 'Unbounded', system-ui, sans-serif;
+  --font-body: 'Hanken Grotesk', system-ui, sans-serif;
+  --font-mono: 'Space Mono', ui-monospace, monospace;
+
+  --r-card: 18px;
+  --r-pill: 999px;
+  --maxw: 460px;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; }
+input, select { font-family: inherit; }
+
+h1, h2, h3 { font-family: var(--font-display); font-weight: 700; line-height: 1.12; margin: 0; }
+.mono { font-family: var(--font-mono); }
+
+/* ---------- layout shell ---------- */
+.app {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.shell {
+  width: 100%;
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 20px 16px 120px;
+  flex: 1;
+}
+@media (min-width: 760px) {
+  :root { --maxw: 540px; }
+  .shell { padding-top: 32px; }
+}
+
+/* ---------- buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: var(--r-pill);
+  padding: 14px 22px;
+  font-weight: 700;
+  font-size: 15px;
+  transition: transform 0.12s ease, filter 0.2s ease, background 0.2s ease;
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary {
+  background: var(--amber);
+  color: #1a140a;
+  box-shadow: 0 0 24px -4px var(--amber-glow);
+}
+.btn-primary:hover { filter: brightness(1.06); }
+.btn-ghost {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--perf);
+}
+.btn-ghost:hover { border-color: var(--muted); }
+.btn-block { width: 100%; }
+
+.btn-google {
+  width: 100%;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--perf);
+  padding: 15px 22px;
+}
+.btn-google:hover { border-color: var(--muted); }
+
+/* ---------- misc text ---------- */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+.muted { color: var(--muted); }
+.center { text-align: center; }
+
+/* ---------- top bar ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+/* ---------- floating action ---------- */
+.fab {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  z-index: 40;
+  background: var(--amber);
+  color: #1a140a;
+  box-shadow: 0 10px 30px -6px var(--amber-glow), 0 0 0 1px rgba(0,0,0,0.05);
+}
+
+/* ---------- forms ---------- */
+.field {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--perf);
+  color: var(--ink);
+  border-radius: 14px;
+  padding: 14px 16px;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+.field:focus { border-color: var(--amber); }
+.label { font-size: 13px; color: var(--muted); margin-bottom: 8px; display: block; }
+
+/* reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
