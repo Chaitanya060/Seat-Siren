@@ -1,0 +1,12 @@
+# Copy to `.dev.vars` for local `wrangler dev`. NEVER commit real secrets.
+# These are Worker SECRETS (set in prod with `wrangler secret put <NAME>`):
+
+TELEGRAM_BOT_TOKEN=123456:replace-with-botfather-token
+TELEGRAM_WEBHOOK_SECRET=replace-with-a-long-random-string
+TURNSTILE_SECRET=replace-with-turnstile-secret
+RESEND_API_KEY=replace-if-email-enabled
+
+# Local-only mock controls (optional):
+# MOCK_FORCE=open      # force every target OPEN
+# MOCK_FORCE=closed    # force every target CLOSED
+# MOCK_FORCE=error     # force every target to a TEMPORARY_ERROR

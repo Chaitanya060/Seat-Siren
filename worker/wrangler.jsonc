@@ -1,0 +1,42 @@
+{
+  // SeatSiren backend Worker — API (fetch) + 1-minute cron poller (scheduled).
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "seatsiren",
+  "main": "src/index.js",
+  "compatibility_date": "2024-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Every-minute cron runs the poller (UTC). Max 5 crons/account on free tier.
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+
+  // D1 is a native binding (env.DB) — no database secret to store.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "seatsiren",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // Non-secret config. Secrets go in via `wrangler secret put` (see README):
+  //   FIREBASE_PROJECT_ID is public config, but kept here for clarity.
+  //   TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, TURNSTILE_SECRET,
+  //   RESEND_API_KEY, and any provider credential are SECRETS, never vars.
+  "vars": {
+    "FIREBASE_PROJECT_ID": "seatsiren-dev",
+    "ALLOWED_ORIGIN": "http://localhost:5173",
+    "MAX_ACTIVE_ALERTS": "5",
+    "MAX_TARGETS_PER_RUN": "10",
+    "DUE_QUERY_LIMIT": "60",
+    "POLL_INTERVAL_SECONDS": "120",
+    "TELEGRAM_BOT_USERNAME": "SeatSirenBot",
+    "EMAIL_ENABLED": "false",
+    // DEV_AUTH=true lets the local dashboard authenticate without real Firebase
+    // tokens (accepts "Bearer dev:<uid>:<email>"). NEVER set true in production.
+    "DEV_AUTH": "true",
+    "TURNSTILE_ENABLED": "false"
+  }
+}

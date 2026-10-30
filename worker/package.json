@@ -1,0 +1,17 @@
+{
+  "name": "seatsiren-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SeatSiren backend — Cloudflare Worker (API + cron poller) on D1.",
+  "scripts": {
+    "dev": "wrangler dev --local --persist-to .wrangler/state",
+    "migrate:local": "wrangler d1 migrations apply seatsiren --local --persist-to .wrangler/state",
+    "migrate:remote": "wrangler d1 migrations apply seatsiren --remote",
+    "test": "node --test \"test/**/*.test.js\"",
+    "cron:local": "wrangler dev --local --test-scheduled --persist-to .wrangler/state"
+  },
+  "devDependencies": {
+    "wrangler": "^3.80.0"
+  }
+}
