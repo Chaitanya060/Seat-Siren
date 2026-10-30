@@ -6,6 +6,7 @@ export default function TelegramConnect() {
   const { telegramLinked, fetchProfile } = useAlerts()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [pending, setPending] = useState(false)
 
   const handleConnect = async () => {
     setLoading(true)
@@ -13,6 +14,7 @@ export default function TelegramConnect() {
     try {
       const data = await requestTelegramLink()
       if (data?.deepLink) {
+        setPending(true)
         window.open(data.deepLink, '_blank')
       }
     } catch (err) {
@@ -24,30 +26,60 @@ export default function TelegramConnect() {
   }
 
   return (
-    <div className="tg-connect">
-      <div className="tg-row">
+    <div className="settings-section-card">
+      <div className="row-between" style={{ flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <div style={{ fontWeight: 600 }}>Telegram</div>
-          <div className="step-hint" style={{ margin: 0 }}>
-            Primary channel — instant, lands on your phone.
+          <div style={{ fontWeight: 600, fontSize: 16 }}>Telegram Notifications</div>
+          <div className="muted-text" style={{ fontSize: 13.5, marginTop: 4 }}>
+            Primary alert channel — instant notification directly to your phone.
           </div>
         </div>
+
         {telegramLinked ? (
-          <span className="tg-connected">✓ Connected</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="badge badge-green">✓ Connected</span>
+          </div>
         ) : (
-          <button className="btn btn-primary" onClick={handleConnect} disabled={loading}>
-            {loading ? 'Opening…' : 'Connect'}
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={handleConnect}
+            disabled={loading}
+          >
+            {loading ? 'Generating Link…' : pending ? 'Reopen Bot' : 'Connect Telegram'}
           </button>
         )}
       </div>
-      {error && (
-        <div style={{ color: 'var(--red, #e74c3c)', fontSize: 13, marginTop: 8 }}>
-          {error}
+
+      {pending && !telegramLinked && (
+        <div
+          style={{
+            marginTop: 14,
+            padding: '12px 16px',
+            borderRadius: 'var(--r-md)',
+            background: 'rgba(245, 165, 36, 0.08)',
+            border: '1px solid var(--amber)',
+            fontSize: 13.5,
+          }}
+        >
+          <div style={{ fontWeight: 600, color: 'var(--amber)', marginBottom: 2 }}>
+            Link opened in Telegram
+          </div>
+          <span className="muted-text">
+            Tap <strong>Start</strong> in the Telegram chat with @SeatSirenBot to pair your account.
+          </span>
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{ marginLeft: 10, padding: '4px 10px', fontSize: 12 }}
+            onClick={() => fetchProfile()}
+          >
+            Check status
+          </button>
         </div>
       )}
-      {!telegramLinked && (
-        <div className="step-hint" style={{ marginTop: 10, marginBottom: 0 }}>
-          Opens <span className="mono">Telegram</span> to pair your account with @SeatSirenBot.
+
+      {error && (
+        <div style={{ color: 'var(--danger)', fontSize: 13, marginTop: 10 }}>
+          {error}
         </div>
       )}
     </div>

@@ -1,15 +1,5 @@
-const LABELS = {
-  watching: 'Watching',
-  fired: 'Bookings open',
-  cancelled: 'Cancelled',
-  expired: 'Expired',
-}
+import StatusIndicator from './StatusIndicator'
 
 export default function StatusLight({ status }) {
-  return (
-    <span className={`statuslight ${status}`}>
-      <span className="dot" aria-hidden="true" />
-      {LABELS[status] || status}
-    </span>
-  )
+  return <StatusIndicator status={status} />
 }

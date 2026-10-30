@@ -8,31 +8,87 @@ import CreateAlert from './screens/CreateAlert'
 import Settings from './screens/Settings'
 import AlertDetail from './screens/AlertDetail'
 
-// Route guard: redirects to /auth if not signed in.
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
+
   if (loading) {
     return (
-      <div className="shell" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-        <span className="muted">Loading…</span>
+      <div
+        className="app-container"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+        }}
+      >
+        <span className="mono muted-text" style={{ fontSize: 14 }}>
+          Authenticating SeatSiren…
+        </span>
       </div>
     )
   }
-  if (!user) return <Navigate to="/auth" replace />
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
   return children
 }
 
 export default function App() {
   return (
-    <div className="app">
-      <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/app" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/new" element={<ProtectedRoute><CreateAlert /></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-        <Route path="/alert/:id" element={<ProtectedRoute><AlertDetail /></ProtectedRoute>} />
-      </Routes>
-    </div>
+    <Routes>
+      {/* Public Pages */}
+      <Route path="/" element={<Landing />} />
+      <Route path="/login" element={<Auth />} />
+      <Route path="/auth" element={<Navigate to="/login" replace />} />
+
+      {/* Authenticated Dashboard */}
+      <Route
+        path="/app"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Create Alert Wizard */}
+      <Route
+        path="/app/alerts/new"
+        element={
+          <ProtectedRoute>
+            <CreateAlert />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/new" element={<Navigate to="/app/alerts/new" replace />} />
+
+      {/* Settings */}
+      <Route
+        path="/app/settings"
+        element={
+          <ProtectedRoute>
+            <Settings />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/settings" element={<Navigate to="/app/settings" replace />} />
+
+      {/* Alert Detail */}
+      <Route
+        path="/app/alerts/:id"
+        element={
+          <ProtectedRoute>
+            <AlertDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/alert/:id" element={<Navigate to="/app/alerts/:id" replace />} />
+
+      {/* Fallback */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   )
 }

@@ -1,9 +1,5 @@
-export default function MarqueeLogo({ size = 'lg', bulb = true }) {
-  return (
-    <span className={`marquee ${size}`} aria-label="SeatSiren">
-      <span className="seat">Seat</span>
-      <span className="siren">Siren</span>
-      {bulb && <span className="bulb" aria-hidden="true" />}
-    </span>
-  )
+import SeatSirenLogo from './SeatSirenLogo'
+
+export default function MarqueeLogo({ size = 'md', to = '/' }) {
+  return <SeatSirenLogo size={size} to={to} />
 }
