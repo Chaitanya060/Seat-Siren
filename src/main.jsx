@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
 import { ThemeProvider } from './theme/ThemeProvider.jsx'
+import { AuthProvider } from './store/auth.jsx'
 import { AlertsProvider } from './store/alerts.jsx'
 import './index.css'
 
@@ -10,9 +11,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
       <ThemeProvider>
-        <AlertsProvider>
-          <App />
-        </AlertsProvider>
+        <AuthProvider>
+          <AlertsProvider>
+            <App />
+          </AlertsProvider>
+        </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
   </React.StrictMode>

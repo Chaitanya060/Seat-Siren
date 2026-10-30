@@ -1,13 +1,36 @@
-import { useMemo, useState } from 'react'
-import { MOVIES } from '../data/mock'
+import { useMemo, useState, useEffect } from 'react'
+import { MOVIES as FALLBACK_MOVIES } from '../data/mock'
+import { getMovies } from '../lib/api'
 
 export default function MovieSearch({ value, onSelect }) {
+  const [movies, setMovies] = useState(FALLBACK_MOVIES)
   const [q, setQ] = useState('')
+
+  useEffect(() => {
+    let active = true
+    getMovies()
+      .then((data) => {
+        if (active && data?.movies?.length) {
+          const mapped = data.movies.map((m) => ({
+            id: m.movie_id,
+            name: m.title,
+            lang: m.language || 'Telugu',
+            hyped: ['mov_pushpa3', 'mov_jailer2', 'mov_kalki2', 'mov_avengers', 'mov_coolie'].includes(m.movie_id),
+          }))
+          setMovies(mapped)
+        }
+      })
+      .catch(() => {
+        // Fall back to mock data silently
+      })
+    return () => { active = false }
+  }, [])
+
   const list = useMemo(() => {
     const term = q.trim().toLowerCase()
-    const base = term ? MOVIES.filter((m) => m.name.toLowerCase().includes(term)) : MOVIES
+    const base = term ? movies.filter((m) => m.name.toLowerCase().includes(term)) : movies
     return [...base].sort((a, b) => Number(b.hyped) - Number(a.hyped))
-  }, [q])
+  }, [q, movies])
 
   return (
     <div>

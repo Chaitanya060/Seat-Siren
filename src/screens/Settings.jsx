@@ -1,13 +1,24 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MarqueeLogo from '../components/MarqueeLogo'
 import ThemeToggle from '../components/ThemeToggle'
 import TelegramConnect from '../components/TelegramConnect'
 import { useAlerts } from '../store/alerts'
+import { useAuth } from '../store/auth'
 
 export default function Settings() {
   const navigate = useNavigate()
-  const { emailBackup, setEmailBackup, activeCount, allowance } = useAlerts()
-  const pct = Math.round((activeCount / allowance) * 100)
+  const { activeCount, allowance, profile } = useAlerts()
+  const { user, signOut } = useAuth()
+  const [emailBackup, setEmailBackup] = useState(true)
+
+  const pct = allowance > 0 ? Math.round((activeCount / allowance) * 100) : 0
+  const userEmail = user?.email || profile?.email || 'Signed in user'
+
+  const handleSignOut = async () => {
+    await signOut()
+    navigate('/')
+  }
 
   return (
     <div className="shell">
@@ -46,7 +57,7 @@ export default function Settings() {
       <div className="setting-block">
         <div className="row-between">
           <span className="mono">{activeCount} / {allowance} active</span>
-          <span className="muted" style={{ fontSize: 13 }}>{allowance - activeCount} left</span>
+          <span className="muted" style={{ fontSize: 13 }}>{Math.max(0, allowance - activeCount)} left</span>
         </div>
         <div className="allowance-bar"><div className="fill" style={{ width: pct + '%' }} /></div>
       </div>
@@ -55,10 +66,10 @@ export default function Settings() {
       <div className="setting-block">
         <div className="row-between">
           <div>
-            <div style={{ fontWeight: 600 }}>chaitanyakishore0606@gmail.com</div>
-            <div className="step-hint" style={{ margin: 0 }}>Signed in with Google</div>
+            <div style={{ fontWeight: 600 }}>{userEmail}</div>
+            <div className="step-hint" style={{ margin: 0 }}>Signed in</div>
           </div>
-          <button className="btn btn-ghost" style={{ fontSize: 13, padding: '9px 14px' }} onClick={() => navigate('/')}>
+          <button className="btn btn-ghost" style={{ fontSize: 13, padding: '9px 14px' }} onClick={handleSignOut}>
             Sign out
           </button>
         </div>
