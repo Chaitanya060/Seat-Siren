@@ -2,6 +2,9 @@
 //   lease -> select due alerts -> group by provider target -> check adapter ->
 //   derive state -> fire transitions into the outbox -> update state ->
 //   drain outbox -> record the run.
+//
+// Iterates targets for BOTH providers in the same cron run with budget bounding
+// and auto-pausing on block.
 
 import { acquireLease, releaseLease } from './lease.js'
 import { getAdapter } from '../providers/index.js'
@@ -10,6 +13,9 @@ import { enqueueNotification, drainOutbox } from './outbox.js'
 import { OUTCOME } from '../providers/contract.js'
 import { uuid } from '../util/encoding.js'
 import { nowMs } from '../util/time.js'
+
+const MAX_TARGETS_BUDGET = 40
+const MAX_PROVIDER_CONSECUTIVE_FAILURES = 5
 
 export async function runPoller(env) {
   const owner = await acquireLease(env, 'poller')
@@ -22,11 +28,14 @@ export async function runPoller(env) {
   ).bind(runId, startedAt).run()
 
   const limit = Number(env.DUE_QUERY_LIMIT || 60)
-  const maxTargets = Number(env.MAX_TARGETS_PER_RUN || 10)
+  const maxTargets = Math.min(Number(env.MAX_TARGETS_PER_RUN || 10), MAX_TARGETS_BUDGET)
   let targetsSelected = 0
   let targetsChecked = 0
   let errors = 0
   let notificationsCreated = 0
+
+  const providerCache = new Map()
+  const providerConsecutiveFailures = new Map()
 
   try {
     // 1. Due, watching alerts joined to their state, soonest-due first.
@@ -50,29 +59,73 @@ export async function runPoller(env) {
 
     targetsSelected = due.results.length
 
-    // 2. Group by provider target key so one check serves many users.
+    // 2. Group by provider target key and interleave across providers
+    // so targets for BOTH providers are checked in the same run.
     const groups = groupByProviderTarget(due.results)
-    const batch = groups.slice(0, maxTargets)
+    const interleaved = interleaveTargetsByProvider(groups)
+    const batch = interleaved.slice(0, maxTargets)
 
-    for (const target of batch) {
-      const provider = await env.DB.prepare(
-        'SELECT * FROM providers WHERE provider_id = ?'
-      ).bind(target.providerId).first()
+    for (let i = 0; i < batch.length; i++) {
+      const target = batch[i]
+
+      // Small politeness jitter between target requests (0 to 1500ms by default)
+      if (i > 0) {
+        const jitterCap = Math.min(Number(env.TARGET_JITTER_MS || 500), 2000)
+        const jitter = Math.floor(Math.random() * jitterCap)
+        if (jitter > 0) {
+          await sleep(jitter)
+        }
+      }
+
+      // Cached provider lookup (saves redundant D1 queries within the run)
+      let provider = providerCache.get(target.providerId)
+      if (!provider) {
+        provider = await env.DB.prepare(
+          'SELECT * FROM providers WHERE provider_id = ?'
+        ).bind(target.providerId).first()
+        if (provider) providerCache.set(target.providerId, provider)
+      }
+
+      // If provider was paused or disabled, skip checking and back off
+      if (!provider || provider.integration_status === 'paused' || provider.integration_status === 'disabled') {
+        await backoffTarget(env, target, { outcome: OUTCOME.TEMPORARY_ERROR, retryAfterSeconds: 300 })
+        continue
+      }
+
       const adapter = getAdapter(env, provider)
 
       let res
       try {
         res = await adapter.checkTarget(target)
       } catch (e) {
+        console.warn('adapter_check_error', target.providerId, e?.message || e)
         res = { outcome: OUTCOME.TEMPORARY_ERROR, shows: [] }
       }
       targetsChecked++
 
+      // Self-protection: handle rate limiting, block, or consecutive failures
       if (res.outcome !== OUTCOME.OK) {
         errors++
         await backoffTarget(env, target, res)
+
+        // If blocked (401/403 UNAUTHORIZED), immediately auto-pause provider
+        if (res.outcome === OUTCOME.UNAUTHORIZED) {
+          await pauseProvider(env, target.providerId, 'unauthorized_response')
+          if (provider) provider.integration_status = 'paused'
+        } else {
+          // Track consecutive errors per provider
+          const failCount = (providerConsecutiveFailures.get(target.providerId) || 0) + 1
+          providerConsecutiveFailures.set(target.providerId, failCount)
+          if (failCount >= MAX_PROVIDER_CONSECUTIVE_FAILURES) {
+            await pauseProvider(env, target.providerId, `${failCount}_consecutive_failures`)
+            if (provider) provider.integration_status = 'paused'
+          }
+        }
         continue
       }
+
+      // Success: reset consecutive failure counter for this provider
+      providerConsecutiveFailures.set(target.providerId, 0)
 
       const targetState = deriveState(res.shows)
 
@@ -89,11 +142,11 @@ export async function runPoller(env) {
           notificationsCreated++
           await recordObservations(env, provider.provider_id, alert, matched)
         }
-        await updateAlertState(env, alert, targetState, matched)
+        await updateAlertState(env, alert, targetState, matched, provider)
       }
     }
 
-    // 3. Drain the outbox within the remaining subrequest budget.
+    // 3. Drain the outbox within remaining subrequest budget.
     await drainOutbox(env, 10)
 
     await finishRun(env, runId, {
@@ -140,12 +193,57 @@ export function groupByProviderTarget(rows) {
   return [...map.values()]
 }
 
-function nextCheckAt(env) {
-  const interval = Number(env.POLL_INTERVAL_SECONDS || 120) * 1000
-  return nowMs() + interval
+/**
+ * Fairly interleave target groups across different providers
+ * so both District and BookMyShow get polled in the same cron run.
+ */
+export function interleaveTargetsByProvider(groups) {
+  const byProvider = new Map()
+  for (const g of groups) {
+    if (!byProvider.has(g.providerId)) {
+      byProvider.set(g.providerId, [])
+    }
+    byProvider.get(g.providerId).push(g)
+  }
+
+  const interleaved = []
+  let hasMore = true
+  let index = 0
+
+  while (hasMore) {
+    hasMore = false
+    for (const list of byProvider.values()) {
+      if (index < list.length) {
+        interleaved.push(list[index])
+        hasMore = true
+      }
+    }
+    index++
+  }
+
+  return interleaved
 }
 
-async function updateAlertState(env, alert, observedState, matched) {
+/** Calculate next check time, respecting provider permitted_poll_seconds and adding jitter. */
+export function nextCheckAt(env, provider) {
+  const baseSeconds =
+    provider?.permitted_poll_seconds && provider.permitted_poll_seconds > 0
+      ? provider.permitted_poll_seconds
+      : Number(env.POLL_INTERVAL_SECONDS || 120)
+  const interval = baseSeconds * 1000
+  // Random schedule jitter (0–20 seconds) to avoid synchronized polling waves
+  const jitter = Math.floor(Math.random() * 20_000)
+  return nowMs() + interval + jitter
+}
+
+export async function pauseProvider(env, providerId, reason) {
+  console.warn(`[provider_paused] Provider '${providerId}' auto-paused: ${reason}`)
+  await env.DB.prepare(
+    "UPDATE providers SET integration_status = 'paused', updated_at = ?1 WHERE provider_id = ?2"
+  ).bind(nowMs(), providerId).run()
+}
+
+async function updateAlertState(env, alert, observedState, matched, provider) {
   const t = nowMs()
   const hash = matched.length ? await snapshotHash(matched) : null
   await env.DB.prepare(
@@ -154,12 +252,12 @@ async function updateAlertState(env, alert, observedState, matched) {
          last_observed_state = ?3, last_snapshot_hash = COALESCE(?4, last_snapshot_hash),
          consecutive_failures = 0, last_error_code = NULL, updated_at = ?1
      WHERE alert_id = ?5`
-  ).bind(t, nextCheckAt(env), observedState, hash, alert.id).run()
+  ).bind(t, nextCheckAt(env, provider), observedState, hash, alert.id).run()
 }
 
 async function backoffTarget(env, target, res) {
   const t = nowMs()
-  const base = (res.retryAfterSeconds ? res.retryAfterSeconds * 1000 : 0)
+  const base = res.retryAfterSeconds ? res.retryAfterSeconds * 1000 : 0
   for (const alert of target.alerts) {
     const extra = Math.min(2 ** Math.min(6, 1), 60) * 1000
     await env.DB.prepare(
@@ -214,4 +312,8 @@ export async function expireOldAlerts(env) {
     "UPDATE alerts SET status = 'expired', updated_at = ?1 WHERE status = 'watching' AND expires_at < ?1"
   ).bind(nowMs()).run()
   return res.meta.changes
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }

@@ -1,16 +1,54 @@
-// Provider registry. A provider's integration_status decides whether a live
-// adapter may run; anything not 'active' falls back to the mock adapter so v1
-// is fully testable without authorized access (spec §8, §16).
+// Provider registry.
+// Returns the registered provider adapter (District, BookMyShow, or Mock).
+// A provider's integration_status decides whether a live adapter runs:
+// - 'active' -> calls real provider adapter (District / BookMyShow)
+// - 'mock' (or anything else) -> falls back to mock adapter (spec §8, §16).
 
 import { createMockAdapter } from './mock.js'
+import { createDistrictAdapter } from './district.js'
+import { createBookMyShowAdapter } from './bookmyshow.js'
 
-export function getAdapter(env, provider) {
-  // provider: row from the `providers` table.
-  if (!provider || provider.integration_status !== 'active') {
+export { createMockAdapter, createDistrictAdapter, createBookMyShowAdapter }
+
+/**
+ * Returns the appropriate adapter based on provider record and env.
+ *
+ * @param {object} env - Cloudflare Worker environment / secrets
+ * @param {object|string} providerRecord - Row from `providers` table or provider_id string
+ * @returns {object} Provider adapter instance with checkTarget(target)
+ */
+export function getAdapter(env = {}, providerRecord = null) {
+  if (!providerRecord) {
     return createMockAdapter(env)
   }
-  // Live adapters are registered here once an authorized integration is recorded.
-  // e.g. if (provider.provider_id === 'district') return createDistrictAdapter(env)
-  // Until then, stay on mock.
+
+  // Handle both provider row object { provider_id, integration_status } and string ID
+  const pId = typeof providerRecord === 'string' ? providerRecord : providerRecord.provider_id
+  const status = typeof providerRecord === 'object' ? providerRecord.integration_status : 'active'
+
+  // If status is 'mock', fallback to mock adapter
+  if (status === 'mock') {
+    return createMockAdapter(env)
+  }
+
+  // If status is 'active', instantiate the real provider adapter
+  if (status === 'active') {
+    if (pId === 'district') {
+      return createDistrictAdapter(env)
+    }
+    if (pId === 'bookmyshow') {
+      return createBookMyShowAdapter(env)
+    }
+  }
+
+  // Default fallback for pending_approval, paused, disabled, or unrecognized
   return createMockAdapter(env)
+}
+
+/**
+ * Registry helper: provider(providerId, env)
+ * Returns the adapter instance for the given provider ID and env.
+ */
+export function provider(providerId, env = {}) {
+  return getAdapter(env, providerId)
 }
